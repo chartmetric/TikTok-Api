@@ -425,9 +425,7 @@ class TikTokApi:
                 cookies = await self.get_session_cookies(session)
                 ms_token = cookies.get("msToken")
                 if ms_token is None:
-                    self.logger.warn(
-                        "Failed to get msToken from cookies, trying to make the request anyway (probably will fail)"
-                    )
+                    raise Exception("Failed to get msToken from cookies")
                 params["msToken"] = ms_token
 
         encoded_params = f"{url}?{urlencode(params, safe='=', quote_via=quote)}"
