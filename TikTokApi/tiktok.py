@@ -251,9 +251,11 @@ class TikTokApi:
                 headless = False  # managed by the arg
 
             if ws_endpoint:
-                print(f'Connecting to remote Playwrite at {ws_endpoint}...', end=' ')
-                self.browser = await self.playwright.chromium.connect(ws_endpoint=ws_endpoint)
-                print('success!')
+                print(f"Connecting to remote Playwright at {ws_endpoint}...", end=" ")
+                self.browser = await self.playwright.chromium.connect(
+                    ws_endpoint=ws_endpoint
+                )
+                print("success!")
             else:
                 self.browser = await self.playwright.chromium.launch(
                     headless=headless, args=override_browser_args, proxy=random_choice(proxies), executable_path=executable_path
