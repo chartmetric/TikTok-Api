@@ -244,6 +244,8 @@ class TikTokApi:
                 with TikTokApi() as api:
                     await api.create_sessions(num_sessions=5, ms_tokens=['msToken1', 'msToken2'])
         """
+        self.last_sessions_arguments = locals()
+        self.logger.info("starting Playwright")
         self.playwright = await async_playwright().start()
         if browser == "chromium":
             if headless and override_browser_args is None:
@@ -251,12 +253,11 @@ class TikTokApi:
                 headless = False  # managed by the arg
 
             if ws_endpoint:
-                print(f"Connecting to remote Playwright at {ws_endpoint}...", end=" ")
-                self.browser = await self.playwright.chromium.connect(
-                    ws_endpoint=ws_endpoint
-                )
-                print("success!")
+                self.logger.info(f'connecting to remote Playwrite at {ws_endpoint}')
+                self.browser = await self.playwright.chromium.connect(ws_endpoint=ws_endpoint)
+                self.logger.info('connected to remote Playwrite at {ws_endpoint}')
             else:
+                logging.info('launching local Playwright')
                 self.browser = await self.playwright.chromium.launch(
                     headless=headless, args=override_browser_args, proxy=random_choice(proxies), executable_path=executable_path
                 )
@@ -270,6 +271,7 @@ class TikTokApi:
         else:
             raise ValueError("Invalid browser argument passed")
 
+        self.logger.info(f"creating {num_sessions} session(s)")
         await asyncio.gather(
             *(
                 self.__create_session(
@@ -284,7 +286,12 @@ class TikTokApi:
                 for _ in range(num_sessions)
             )
         )
+        self.logger.info(f"created {num_sessions} session(s), setting self.num_sessions to {len(self.sessions)}")
         self.num_sessions = len(self.sessions)
+
+    async def recreate_sessions(self):
+        """Recreate the sessions with the last arguments."""
+        await self.create_sessions(**self.last_sessions_arguments)
 
     async def close_sessions(self):
         """
@@ -324,6 +331,10 @@ class TikTokApi:
             int: The index of the session.
             TikTokPlaywrightSession: The session.
         """
+        if not self.sessions:
+            self.logger.warning("no sessions available, recreating sessions")
+            asyncio.run(self.recreate_sessions())
+            self.num_sessions = len(self.sessions)
         if kwargs.get("session_index") is not None:
             i = kwargs["session_index"]
         else:
