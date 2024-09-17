@@ -213,7 +213,8 @@ class TikTokApi:
         cookies: list[dict] = None,
         suppress_resource_load_types: list[str] = None,
         browser: str = "chromium",
-        executable_path: str = None
+        executable_path: str = None,
+        ws_endpoint: str = None
     ):
         """
         Create sessions for use within the TikTokApi class.
@@ -234,6 +235,7 @@ class TikTokApi:
             suppress_resource_load_types (list[str]): Types of resources to suppress playwright from loading, excluding more types will make playwright faster.. Types: document, stylesheet, image, media, font, script, textrack, xhr, fetch, eventsource, websocket, manifest, other.
             browser (str): specify either firefox or chromium, default is chromium
             executable_path (str): Path to the browser executable
+            ws_endpoint (str): Websocket endpoint to connect to a remote browser instead of launching a local one
 
         Example Usage:
             .. code-block:: python
@@ -242,21 +244,34 @@ class TikTokApi:
                 with TikTokApi() as api:
                     await api.create_sessions(num_sessions=5, ms_tokens=['msToken1', 'msToken2'])
         """
+        self.last_sessions_arguments = locals()
+        self.logger.info("starting Playwright")
         self.playwright = await async_playwright().start()
         if browser == "chromium":
             if headless and override_browser_args is None:
                 override_browser_args = ["--headless=new"]
                 headless = False  # managed by the arg
-            self.browser = await self.playwright.chromium.launch(
-                headless=headless, args=override_browser_args, proxy=random_choice(proxies), executable_path=executable_path
-            )
+
+            if ws_endpoint:
+                self.logger.info(f'connecting to remote Playwrite at {ws_endpoint}')
+                self.browser = await self.playwright.chromium.connect(ws_endpoint=ws_endpoint)
+                self.logger.info('connected to remote Playwrite at {ws_endpoint}')
+            else:
+                logging.info('launching local Playwright')
+                self.browser = await self.playwright.chromium.launch(
+                    headless=headless, args=override_browser_args, proxy=random_choice(proxies), executable_path=executable_path
+                )
         elif browser == "firefox":
+            if ws_endpoint:
+                print('Firefox does not support remote connections, ignoring ws_endpoint')
+
             self.browser = await self.playwright.firefox.launch(
                 headless=headless, args=override_browser_args, proxy=random_choice(proxies), executable_path=executable_path
             )
         else:
             raise ValueError("Invalid browser argument passed")
 
+        self.logger.info(f"creating {num_sessions} session(s)")
         await asyncio.gather(
             *(
                 self.__create_session(
@@ -271,7 +286,12 @@ class TikTokApi:
                 for _ in range(num_sessions)
             )
         )
+        self.logger.info(f"created {num_sessions} session(s), setting self.num_sessions to {len(self.sessions)}")
         self.num_sessions = len(self.sessions)
+
+    async def recreate_sessions(self):
+        """Recreate the sessions with the last arguments."""
+        await self.create_sessions(**self.last_sessions_arguments)
 
     async def close_sessions(self):
         """
@@ -311,6 +331,10 @@ class TikTokApi:
             int: The index of the session.
             TikTokPlaywrightSession: The session.
         """
+        if not self.sessions:
+            self.logger.warning("no sessions available, recreating sessions")
+            asyncio.run(self.recreate_sessions())
+            self.num_sessions = len(self.sessions)
         if kwargs.get("session_index") is not None:
             i = kwargs["session_index"]
         else:
