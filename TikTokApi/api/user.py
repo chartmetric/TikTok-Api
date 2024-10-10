@@ -194,6 +194,65 @@ class User:
                 return
 
             cursor = resp.get("cursor")
+    
+    async def sounds(self, count=30, cursor=0, **kwargs) -> Iterator[dict]:
+        """
+        Returns a user's sounds.
+
+        Args:
+            count (int): The amount of sounds you want returned.
+            cursor (int): The offset of sounds from 0 you want to get.
+
+        Yields:
+            dict: A dictionary containing information about each sound.
+
+        Raises:
+            InvalidResponseException: If TikTok returns an invalid response.
+
+        Example Usage:
+            async for sound in api.user(username="artist_name").sounds():
+                # do something with each sound
+        """
+        sec_uid = getattr(self, "sec_uid", None)
+        if sec_uid is None or sec_uid == "":
+            await self.info(**kwargs)
+
+        user_id = getattr(self, "user_id", None)
+        if user_id is None or user_id == "":
+            raise ValueError("User ID is required to fetch sounds.")
+
+        found = 0
+        while found < count:
+            params = {
+                "count": min(30, count - found),
+                "cursor": cursor,
+                "secUid": sec_uid,
+                "userId": user_id,
+            }
+
+            resp = await self.parent.make_request(
+                url="https://www.tiktok.com/api/user/music_list/",
+                params=params,
+                headers=kwargs.get("headers"),
+                session_index=kwargs.get("session_index"),
+            )
+
+            if resp is None or "musicList" not in resp:
+                User.parent.logger.warning(
+                    f"No sounds with user: {user_id}"
+                )
+                return
+
+            for sound in resp["musicList"]:
+                yield sound
+                found += 1
+                if found >= count:
+                    return
+
+            if not resp.get("hasMore", False):
+                return
+
+            cursor = resp.get("cursor")
 
     def __extract_from_data(self):
         data = self.as_dict
