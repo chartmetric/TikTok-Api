@@ -214,11 +214,11 @@ class User:
                 # do something with each sound
         """
         sec_uid = getattr(self, "sec_uid", None)
-        if sec_uid is None or sec_uid == "":
+        if not sec_uid:
             await self.info(**kwargs)
 
         user_id = getattr(self, "user_id", None)
-        if user_id is None or user_id == "":
+        if not user_id:
             raise ValueError("User ID is required to fetch sounds.")
 
         found = 0
